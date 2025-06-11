@@ -6,11 +6,11 @@ from typing import Dict, List, Optional
 from threading import Thread, Event
 import winreg
 import psutil
-from .logger import measure_time
+from .logger import Logger, measure_time
 
 class ChangeTracker:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = Logger('change_tracker')
         self.changes: List[Dict] = []
         self.tracking = False
         self.stop_event = Event()

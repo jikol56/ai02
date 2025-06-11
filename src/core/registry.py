@@ -4,11 +4,11 @@ from typing import Optional, Tuple, Dict
 import os
 from datetime import datetime
 import re
-from .logger import measure_time
+from .logger import Logger, measure_time
 
 class RegistryManager:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = Logger('registry')
         # VBA 관련 레지스트리 키
         self.vba_keys = {
             'HKEY_CURRENT_USER\\Software\\Microsoft\\Office\\16.0\\Excel\\Security': {

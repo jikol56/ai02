@@ -16,12 +16,12 @@ import hashlib
 import json
 from datetime import datetime
 import psutil
-from .logger import measure_time
+from .logger import Logger, measure_time
 import time
 
 class SecurityManager:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = Logger('security')
         self.security_policy = self._load_security_policy()
         self.audit_log = []
         self.is_admin = self._is_admin()

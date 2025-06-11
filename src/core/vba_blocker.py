@@ -15,7 +15,7 @@ class VBABlocker:
         self.process_monitor = ProcessMonitor()
         self.security_manager = SecurityManager()
         self.change_tracker = ChangeTracker()
-        self.logger = Logger()
+        self.logger = Logger('vba_blocker')
 
     @measure_time
     def block_vba_execution(self) -> bool:

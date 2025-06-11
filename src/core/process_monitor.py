@@ -3,10 +3,11 @@ import logging
 import time
 from typing import List, Dict, Optional
 from threading import Thread, Event
+from .logger import Logger
 
 class ProcessMonitor:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = Logger('process_monitor')
         self.target_processes = {
             'EXCEL.EXE': 'Microsoft Excel',
             'WINWORD.EXE': 'Microsoft Word',
