@@ -1,0 +1,5 @@
+pywin32==306
+PyQt6==6.6.1
+psutil==5.9.8
+python-registry==1.3.1
+logging==0.4.9.6 
