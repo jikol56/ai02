@@ -6,6 +6,7 @@ import logging
 from .registry import RegistryManager
 from .process_monitor import ProcessMonitor
 from .security import SecurityManager
+from .change_tracker import ChangeTracker
 
 class VBABlocker:
     def __init__(self):
@@ -13,6 +14,7 @@ class VBABlocker:
         self.registry_manager = RegistryManager()
         self.process_monitor = ProcessMonitor()
         self.security_manager = SecurityManager()
+        self.change_tracker = ChangeTracker()
 
     def block_vba_execution(self) -> bool:
         """VBA 실행 차단"""
@@ -20,6 +22,11 @@ class VBABlocker:
             # 관리자 권한 확인
             if not self.security_manager.check_required_privileges():
                 self.logger.error("관리자 권한이 필요합니다.")
+                return False
+
+            # 변경 사항 추적 시작
+            if not self.change_tracker.start_tracking():
+                self.logger.error("변경 사항 추적 시작 실패")
                 return False
 
             # 레지스트리 백업
@@ -100,8 +107,21 @@ class VBABlocker:
                 self.logger.error("레지스트리 복원 실패")
                 return False
 
+            # 변경 사항 추적 중지
+            if not self.change_tracker.stop_tracking():
+                self.logger.error("변경 사항 추적 중지 실패")
+                return False
+
             self.logger.info("VBA 실행이 복원되었습니다.")
             return True
         except Exception as e:
             self.logger.error(f"VBA 복원 실패: {e}")
-            return False 
+            return False
+
+    def get_system_changes(self) -> list:
+        """시스템 변경 사항 조회"""
+        return self.change_tracker.get_changes()
+
+    def clear_system_changes(self) -> bool:
+        """시스템 변경 사항 기록 초기화"""
+        return self.change_tracker.clear_changes() 
