@@ -2,6 +2,8 @@ import logging
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+import time
+from functools import wraps
 
 class Logger:
     def __init__(self, name="vba_blocker"):
@@ -108,4 +110,23 @@ class Logger:
                     with open(log_file, 'w', encoding='utf-8') as f:
                         f.write('')
                 except Exception as e:
-                    self.error(f"로그 파일 초기화 실패: {str(e)}") 
+                    self.error(f"로그 파일 초기화 실패: {str(e)}")
+
+# 성능 측정용 로거
+perf_logger = logging.getLogger("performance")
+perf_logger.setLevel(logging.INFO)
+perf_file_handler = logging.FileHandler("performance.log", encoding="utf-8")
+perf_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+perf_file_handler.setFormatter(perf_formatter)
+perf_logger.addHandler(perf_file_handler)
+
+def measure_time(func):
+    """함수 실행 시간을 측정하여 성능 로그에 기록하는 데코레이터"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        perf_logger.info(f"{func.__qualname__} 실행 시간: {end - start:.4f}초")
+        return result
+    return wrapper 

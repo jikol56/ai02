@@ -7,7 +7,7 @@ from .registry import RegistryManager
 from .process_monitor import ProcessMonitor
 from .security import SecurityManager
 from .change_tracker import ChangeTracker
-from .logger import Logger
+from .logger import Logger, measure_time
 
 class VBABlocker:
     def __init__(self):
@@ -17,6 +17,7 @@ class VBABlocker:
         self.change_tracker = ChangeTracker()
         self.logger = Logger()
 
+    @measure_time
     def block_vba_execution(self) -> bool:
         """VBA 실행을 차단합니다."""
         try:
@@ -80,6 +81,7 @@ class VBABlocker:
         return [p for p in psutil.process_iter(['name']) 
                 if p.info['name'] in target_processes]
 
+    @measure_time
     def is_vba_blocked(self) -> bool:
         """VBA 차단 상태를 확인합니다."""
         try:
@@ -105,6 +107,7 @@ class VBABlocker:
             self.logger.error(f"VBA 차단 상태 확인 중 오류 발생: {str(e)}")
             return False
 
+    @measure_time
     def restore_vba(self) -> bool:
         """VBA 실행을 복원합니다."""
         try:
@@ -136,6 +139,7 @@ class VBABlocker:
             self.logger.error(f"VBA 복원 중 오류 발생: {str(e)}")
             return False
 
+    @measure_time
     def get_system_changes(self) -> list:
         """시스템 변경 사항을 반환합니다."""
         try:
@@ -146,6 +150,7 @@ class VBABlocker:
             self.logger.error(f"시스템 변경 사항 조회 중 오류 발생: {str(e)}")
             return []
 
+    @measure_time
     def clear_system_changes(self) -> bool:
         """시스템 변경 사항을 초기화합니다."""
         try:

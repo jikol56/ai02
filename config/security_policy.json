@@ -1,0 +1,49 @@
+{
+    "require_admin": true,
+    "block_remote_access": true,
+    "audit_changes": true,
+    "max_failed_attempts": 3,
+    "session_timeout": 3600,
+    "allowed_processes": [
+        "EXCEL.EXE",
+        "WINWORD.EXE",
+        "POWERPNT.EXE"
+    ],
+    "blocked_registry_keys": [
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Office\\*\\Security\\VBAWarnings",
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Office\\*\\Security\\AccessVBOM"
+    ],
+    "security_levels": {
+        "low": {
+            "require_admin": false,
+            "block_remote_access": false,
+            "audit_changes": false
+        },
+        "medium": {
+            "require_admin": true,
+            "block_remote_access": false,
+            "audit_changes": true
+        },
+        "high": {
+            "require_admin": true,
+            "block_remote_access": true,
+            "audit_changes": true
+        }
+    },
+    "audit_settings": {
+        "log_retention_days": 30,
+        "log_rotation_size_mb": 10,
+        "log_compression": true,
+        "log_encryption": false
+    },
+    "process_security": {
+        "verify_integrity": true,
+        "check_digital_signature": true,
+        "block_unsigned_processes": true
+    },
+    "registry_security": {
+        "backup_before_modify": true,
+        "verify_after_modify": true,
+        "restore_on_failure": true
+    }
+} 

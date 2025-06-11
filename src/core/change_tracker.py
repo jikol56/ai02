@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from threading import Thread, Event
 import winreg
 import psutil
+from .logger import measure_time
 
 class ChangeTracker:
     def __init__(self):
@@ -20,6 +21,7 @@ class ChangeTracker:
         os.makedirs(self.log_dir, exist_ok=True)
         self.log_file = os.path.join(self.log_dir, 'system_changes.json')
 
+    @measure_time
     def start_tracking(self) -> bool:
         """변경 사항 추적 시작"""
         if self.tracking:
@@ -38,6 +40,7 @@ class ChangeTracker:
             self.logger.error(f"추적 시작 실패: {e}")
             return False
 
+    @measure_time
     def stop_tracking(self) -> bool:
         """변경 사항 추적 중지"""
         if not self.tracking:
@@ -128,6 +131,7 @@ class ChangeTracker:
         except Exception as e:
             self.logger.error(f"변경 사항 저장 실패: {e}")
 
+    @measure_time
     def get_changes(self) -> List[Dict]:
         """저장된 변경 사항 반환"""
         try:
@@ -139,6 +143,7 @@ class ChangeTracker:
             self.logger.error(f"변경 사항 로드 실패: {e}")
             return []
 
+    @measure_time
     def clear_changes(self) -> bool:
         """변경 사항 기록 초기화"""
         try:

@@ -4,6 +4,7 @@ from typing import Optional, Tuple, Dict
 import os
 from datetime import datetime
 import re
+from .logger import measure_time
 
 class RegistryManager:
     def __init__(self):
@@ -80,6 +81,7 @@ class RegistryManager:
         
         return registry_data
 
+    @measure_time
     def backup_registry(self):
         """현재 레지스트리 설정을 파일로 백업"""
         try:
@@ -113,6 +115,7 @@ class RegistryManager:
             self.logger.error(f"Failed to backup registry: {e}")
             return False
 
+    @measure_time
     def modify_registry(self) -> bool:
         """
         VBA 관련 레지스트리 설정을 수정
@@ -138,6 +141,7 @@ class RegistryManager:
             self.logger.error(f"Failed to modify registry: {str(e)}")
             return False
 
+    @measure_time
     def restore_registry(self, backup_file: Optional[str] = None) -> bool:
         """
         백업된 레지스트리 설정을 복원
@@ -175,6 +179,7 @@ class RegistryManager:
             self.logger.error(f"Failed to restore registry: {str(e)}")
             return False
 
+    @measure_time
     def check_registry_status(self) -> bool:
         """
         현재 레지스트리 설정이 VBA 차단 상태인지 확인
