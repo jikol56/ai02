@@ -1,5 +1,6 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, 
+                            QWidget, QLabel, QMessageBox, QHBoxLayout)
 from PyQt6.QtCore import Qt
 from core.vba_blocker import VBABlocker
 
@@ -11,7 +12,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle('VBA Code Blocker')
-        self.setGeometry(100, 100, 400, 300)
+        self.setGeometry(100, 100, 500, 300)
 
         # 중앙 위젯 생성
         central_widget = QWidget()
@@ -20,12 +21,24 @@ class MainWindow(QMainWindow):
 
         # 상태 표시 레이블
         self.status_label = QLabel('VBA 차단 상태: 확인 중...')
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
+        # 버튼 레이아웃
+        button_layout = QHBoxLayout()
+        
         # VBA 차단 버튼
         self.block_button = QPushButton('VBA 차단')
         self.block_button.clicked.connect(self.toggle_vba_block)
-        layout.addWidget(self.block_button)
+        button_layout.addWidget(self.block_button)
+
+        # VBA 복원 버튼
+        self.restore_button = QPushButton('VBA 복원')
+        self.restore_button.clicked.connect(self.restore_vba)
+        self.restore_button.setEnabled(False)
+        button_layout.addWidget(self.restore_button)
+
+        layout.addLayout(button_layout)
 
         # 상태 업데이트
         self.update_status()
@@ -34,14 +47,34 @@ class MainWindow(QMainWindow):
         if self.vba_blocker.block_vba_execution():
             self.status_label.setText('VBA 차단 상태: 차단됨')
             self.block_button.setText('VBA 차단 해제')
+            self.restore_button.setEnabled(True)
+            QMessageBox.information(self, '성공', 'VBA가 성공적으로 차단되었습니다.')
         else:
             self.status_label.setText('VBA 차단 상태: 차단 실패')
+            QMessageBox.warning(self, '오류', 'VBA 차단에 실패했습니다.')
         self.update_status()
+
+    def restore_vba(self):
+        reply = QMessageBox.question(self, '확인', 
+                                   'VBA 차단을 해제하시겠습니까?',
+                                   QMessageBox.StandardButton.Yes | 
+                                   QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if self.vba_blocker.restore_vba():
+                self.status_label.setText('VBA 차단 상태: 차단되지 않음')
+                self.block_button.setText('VBA 차단')
+                self.restore_button.setEnabled(False)
+                QMessageBox.information(self, '성공', 'VBA가 성공적으로 복원되었습니다.')
+            else:
+                QMessageBox.warning(self, '오류', 'VBA 복원에 실패했습니다.')
+            self.update_status()
 
     def update_status(self):
         is_blocked = self.vba_blocker.is_vba_blocked()
         self.status_label.setText(f'VBA 차단 상태: {"차단됨" if is_blocked else "차단되지 않음"}')
         self.block_button.setText('VBA 차단 해제' if is_blocked else 'VBA 차단')
+        self.restore_button.setEnabled(is_blocked)
 
 def main():
     app = QApplication(sys.argv)
