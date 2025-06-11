@@ -1,8 +1,9 @@
 import winreg
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 import os
 from datetime import datetime
+import re
 
 class RegistryManager:
     def __init__(self):
@@ -46,6 +47,39 @@ class RegistryManager:
             
         return hive_map[hive_name], path
 
+    def _parse_reg_file(self, reg_file: str) -> Dict[str, Dict[str, int]]:
+        """
+        .reg 파일을 파싱하여 레지스트리 값 추출
+        """
+        registry_data = {}
+        current_key = None
+        
+        with open(reg_file, 'r', encoding='utf-16') as f:
+            for line in f:
+                line = line.strip()
+                
+                # 키 경로 파싱
+                if line.startswith('[') and line.endswith(']'):
+                    current_key = line[1:-1]
+                    registry_data[current_key] = {}
+                    continue
+                
+                # 값 파싱
+                if current_key and '=' in line:
+                    try:
+                        name, value = line.split('=', 1)
+                        name = name.strip('"')
+                        
+                        # dword 값 파싱
+                        if value.startswith('dword:'):
+                            hex_value = value[6:]
+                            registry_data[current_key][name] = int(hex_value, 16)
+                    except ValueError as e:
+                        self.logger.warning(f"Failed to parse line: {line}, Error: {str(e)}")
+                        continue
+        
+        return registry_data
+
     def backup_registry(self) -> bool:
         """
         현재 레지스트리 설정을 백업
@@ -54,13 +88,17 @@ class RegistryManager:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_file = os.path.join(self.backup_path, f'registry_backup_{timestamp}.reg')
             
+            # Windows Registry Editor Version 5.00 헤더 추가
+            with open(backup_file, 'w', encoding='utf-16') as f:
+                f.write('Windows Registry Editor Version 5.00\n\n')
+            
             for key_path in self.vba_keys.keys():
                 hive, path = self._get_hive_and_path(key_path)
                 with winreg.OpenKey(hive, path, 0, winreg.KEY_READ) as key:
                     for value_name, _ in self.vba_keys[key_path].items():
                         try:
                             value, _ = winreg.QueryValueEx(key, value_name)
-                            with open(backup_file, 'a') as f:
+                            with open(backup_file, 'a', encoding='utf-16') as f:
                                 f.write(f'[{key_path}]\n')
                                 f.write(f'"{value_name}"=dword:{value:08x}\n\n')
                         except WindowsError:
@@ -100,8 +138,22 @@ class RegistryManager:
                     raise FileNotFoundError("No backup files found")
                 backup_file = os.path.join(self.backup_path, sorted(backup_files)[-1])
 
-            # TODO: .reg 파일 파싱 및 복원 로직 구현
-            self.logger.info(f"Restoring registry from: {backup_file}")
+            # .reg 파일 파싱
+            registry_data = self._parse_reg_file(backup_file)
+            
+            # 레지스트리 값 복원
+            for key_path, values in registry_data.items():
+                hive, path = self._get_hive_and_path(key_path)
+                try:
+                    with winreg.OpenKey(hive, path, 0, winreg.KEY_WRITE) as key:
+                        for value_name, value in values.items():
+                            winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, value)
+                            self.logger.info(f"Restored {key_path}\\{value_name} to {value}")
+                except WindowsError as e:
+                    self.logger.error(f"Failed to restore key {key_path}: {str(e)}")
+                    continue
+
+            self.logger.info(f"Registry restored from: {backup_file}")
             return True
         except Exception as e:
             self.logger.error(f"Failed to restore registry: {str(e)}")
