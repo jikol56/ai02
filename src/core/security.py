@@ -17,6 +17,7 @@ import json
 from datetime import datetime
 import psutil
 from .logger import measure_time
+import time
 
 class SecurityManager:
     def __init__(self):
@@ -24,6 +25,9 @@ class SecurityManager:
         self.security_policy = self._load_security_policy()
         self.audit_log = []
         self.is_admin = self._is_admin()
+        self._process_cache = None
+        self._process_cache_time = 0
+        self._process_cache_ttl = 1  # 1초 캐시
 
     def _is_admin(self) -> bool:
         """현재 프로세스가 관리자 권한으로 실행 중인지 확인"""
@@ -210,22 +214,18 @@ class SecurityManager:
             
     @measure_time
     def check_process_security(self, process_name: str) -> bool:
-        """프로세스 보안 검증"""
+        """프로세스 보안 검증 (캐시 적용)"""
         try:
-            # 프로세스 이름 정규화
             process_name = process_name.upper()
-            
-            # 허용된 프로세스 목록 확인
             if process_name not in self.security_policy["allowed_processes"]:
                 self.logger.warning(f"허용되지 않은 프로세스: {process_name}")
                 return False
-                
-            # 프로세스 무결성 검증 (실제 구현에서는 더 강력한 검증 필요)
-            # 현재는 기본적인 프로세스 존재 여부만 확인
-            for proc in psutil.process_iter(['name']):
-                if proc.info['name'].upper() == process_name:
-                    return True
-                    
+            now = time.time()
+            if self._process_cache is None or now - self._process_cache_time > self._process_cache_ttl:
+                self._process_cache = [proc.info['name'].upper() for proc in psutil.process_iter(['name']) if proc.info['name']]
+                self._process_cache_time = now
+            if process_name in self._process_cache:
+                return True
             self.logger.warning(f"프로세스 무결성 검증 실패: {process_name}")
             return False
         except Exception as e:
