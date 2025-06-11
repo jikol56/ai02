@@ -3,74 +3,88 @@ import win32con
 import win32security
 import psutil
 import logging
-from typing import List
 from .registry import RegistryManager
+from .process_monitor import ProcessMonitor
 
 class VBABlocker:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.blocked_processes = ['vba', 'vbe', 'vbscript']
         self.registry_manager = RegistryManager()
+        self.process_monitor = ProcessMonitor()
 
     def block_vba_execution(self) -> bool:
-        """
-        VBA 실행을 차단하는 메인 함수
-        """
+        """VBA 실행 차단"""
         try:
             # 레지스트리 백업
             if not self.registry_manager.backup_registry():
-                self.logger.error("Failed to backup registry")
+                self.logger.error("레지스트리 백업 실패")
                 return False
 
-            # 레지스트리 설정 변경
+            # 레지스트리 수정
             if not self.registry_manager.modify_registry():
-                self.logger.error("Failed to modify registry")
+                self.logger.error("레지스트리 수정 실패")
                 return False
 
             # 실행 중인 VBA 프로세스 종료
             self._kill_vba_processes()
+
+            # 프로세스 모니터링 시작
+            if not self.process_monitor.start_monitoring():
+                self.logger.error("프로세스 모니터링 시작 실패")
+                return False
+
+            self.logger.info("VBA 실행이 차단되었습니다.")
             return True
         except Exception as e:
-            self.logger.error(f"VBA 차단 중 오류 발생: {str(e)}")
+            self.logger.error(f"VBA 차단 실패: {e}")
             return False
 
     def _kill_vba_processes(self):
-        """
-        실행 중인 VBA 관련 프로세스를 종료
-        """
-        for proc in psutil.process_iter(['name']):
+        """실행 중인 VBA 프로세스 종료"""
+        for proc in psutil.process_iter(['pid', 'name']):
             try:
-                if any(blocked in proc.info['name'].lower() for blocked in self.blocked_processes):
-                    proc.kill()
-                    self.logger.info(f"Killed process: {proc.info['name']}")
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                self.logger.warning(f"Failed to kill process: {str(e)}")
+                if proc.info['name'].upper() in self.process_monitor.target_processes:
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                    self.logger.info(f"{proc.info['name']} 프로세스가 종료되었습니다.")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
+            except Exception as e:
+                self.logger.error(f"프로세스 종료 실패: {e}")
 
     def is_vba_blocked(self) -> bool:
-        """
-        VBA가 차단되어 있는지 확인
-        """
-        # 레지스트리 설정 확인
-        if not self.registry_manager.check_registry_status():
+        """VBA가 차단되었는지 확인"""
+        try:
+            # 레지스트리 상태 확인
+            registry_blocked = self.registry_manager.check_registry_status()
+            
+            # 프로세스 모니터링 상태 확인
+            monitoring_active = self.process_monitor.monitoring
+            
+            # 실행 중인 VBA 프로세스 확인
+            running_processes = self.process_monitor.get_running_processes()
+            no_running_processes = len(running_processes) == 0
+
+            return registry_blocked and monitoring_active and no_running_processes
+        except Exception as e:
+            self.logger.error(f"VBA 차단 상태 확인 실패: {e}")
             return False
 
-        # 실행 중인 VBA 프로세스 확인
-        for proc in psutil.process_iter(['name']):
-            try:
-                if any(blocked in proc.info['name'].lower() for blocked in self.blocked_processes):
-                    return False
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-
-        return True
-
     def restore_vba(self) -> bool:
-        """
-        VBA 차단을 해제하고 원래 설정으로 복원
-        """
+        """VBA 실행 복원"""
         try:
-            return self.registry_manager.restore_registry()
+            # 프로세스 모니터링 중지
+            if not self.process_monitor.stop_monitoring():
+                self.logger.error("프로세스 모니터링 중지 실패")
+                return False
+
+            # 레지스트리 복원
+            if not self.registry_manager.restore_registry():
+                self.logger.error("레지스트리 복원 실패")
+                return False
+
+            self.logger.info("VBA 실행이 복원되었습니다.")
+            return True
         except Exception as e:
-            self.logger.error(f"VBA 복원 중 오류 발생: {str(e)}")
+            self.logger.error(f"VBA 복원 실패: {e}")
             return False 

@@ -23,7 +23,7 @@ class RegistryManager:
                 'AccessVBOM': 0
             }
         }
-        self.backup_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'backup')
+        self.backup_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'backups')
         os.makedirs(self.backup_path, exist_ok=True)
 
     def _get_hive_and_path(self, key_path: str) -> Tuple[int, str]:
@@ -80,34 +80,37 @@ class RegistryManager:
         
         return registry_data
 
-    def backup_registry(self) -> bool:
-        """
-        현재 레지스트리 설정을 백업
-        """
+    def backup_registry(self):
+        """현재 레지스트리 설정을 파일로 백업"""
         try:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_file = os.path.join(self.backup_path, f'registry_backup_{timestamp}.reg')
+            backup_file = os.path.join(self.backup_path, f'vba_settings_{timestamp}.reg')
             
-            # Windows Registry Editor Version 5.00 헤더 추가
-            with open(backup_file, 'w', encoding='utf-16') as f:
-                f.write('Windows Registry Editor Version 5.00\n\n')
-            
-            for key_path in self.vba_keys.keys():
+            lines = ['Windows Registry Editor Version 5.00\n']
+            for key_path, values in self.vba_keys.items():
                 hive, path = self._get_hive_and_path(key_path)
-                with winreg.OpenKey(hive, path, 0, winreg.KEY_READ) as key:
-                    for value_name, _ in self.vba_keys[key_path].items():
-                        try:
-                            value, _ = winreg.QueryValueEx(key, value_name)
-                            with open(backup_file, 'a', encoding='utf-16') as f:
-                                f.write(f'[{key_path}]\n')
-                                f.write(f'"{value_name}"=dword:{value:08x}\n\n')
-                        except WindowsError:
-                            self.logger.warning(f"Value {value_name} not found in {key_path}")
-            
+                try:
+                    with winreg.OpenKey(hive, path, 0, winreg.KEY_READ) as key:
+                        lines.append(f'[{key_path}]\n')
+                        for value_name, _ in values.items():
+                            try:
+                                value, _ = winreg.QueryValueEx(key, value_name)
+                                if isinstance(value, int):
+                                    lines.append(f'"{value_name}"=dword:{value:08x}\n')
+                                else:
+                                    lines.append(f'"{value_name}"="{value}"\n')
+                            except WindowsError:
+                                self.logger.warning(f"Value {value_name} not found in {key_path}")
+                        lines.append('\n')
+                except WindowsError as e:
+                    self.logger.error(f"Error accessing registry key {key_path}: {e}")
+                    continue
+            with open(backup_file, 'w', encoding='utf-16') as f:
+                f.writelines(lines)
             self.logger.info(f"Registry backup created: {backup_file}")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to backup registry: {str(e)}")
+            self.logger.error(f"Failed to backup registry: {e}")
             return False
 
     def modify_registry(self) -> bool:
@@ -117,10 +120,19 @@ class RegistryManager:
         try:
             for key_path, values in self.vba_keys.items():
                 hive, path = self._get_hive_and_path(key_path)
-                with winreg.OpenKey(hive, path, 0, winreg.KEY_WRITE) as key:
-                    for value_name, value in values.items():
-                        winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, value)
-                        self.logger.info(f"Modified {key_path}\\{value_name} to {value}")
+                try:
+                    with winreg.OpenKey(hive, path, 0, winreg.KEY_WRITE) as key:
+                        for value_name, value in values.items():
+                            try:
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, value)
+                            except WindowsError as e:
+                                self.logger.error(f"Error setting value {value_name} in {key_path}: {e}")
+                                continue
+                except WindowsError as e:
+                    self.logger.error(f"Error accessing registry key {key_path}: {e}")
+                    continue
+            
+            self.logger.info("Registry modification completed")
             return True
         except Exception as e:
             self.logger.error(f"Failed to modify registry: {str(e)}")
@@ -133,9 +145,10 @@ class RegistryManager:
         try:
             if backup_file is None:
                 # 가장 최근 백업 파일 찾기
-                backup_files = [f for f in os.listdir(self.backup_path) if f.startswith('registry_backup_')]
+                backup_files = [f for f in os.listdir(self.backup_path) if f.startswith('vba_settings_')]
                 if not backup_files:
-                    raise FileNotFoundError("No backup files found")
+                    self.logger.error("No backup files found")
+                    return False
                 backup_file = os.path.join(self.backup_path, sorted(backup_files)[-1])
 
             # .reg 파일 파싱
@@ -147,10 +160,13 @@ class RegistryManager:
                 try:
                     with winreg.OpenKey(hive, path, 0, winreg.KEY_WRITE) as key:
                         for value_name, value in values.items():
-                            winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, value)
-                            self.logger.info(f"Restored {key_path}\\{value_name} to {value}")
+                            try:
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, value)
+                            except WindowsError as e:
+                                self.logger.error(f"Error restoring value {value_name} in {key_path}: {e}")
+                                continue
                 except WindowsError as e:
-                    self.logger.error(f"Failed to restore key {key_path}: {str(e)}")
+                    self.logger.error(f"Error accessing registry key {key_path}: {e}")
                     continue
 
             self.logger.info(f"Registry restored from: {backup_file}")
@@ -164,16 +180,19 @@ class RegistryManager:
         현재 레지스트리 설정이 VBA 차단 상태인지 확인
         """
         try:
-            for key_path, values in self.vba_keys.items():
+            for key_path, expected_values in self.vba_keys.items():
                 hive, path = self._get_hive_and_path(key_path)
-                with winreg.OpenKey(hive, path, 0, winreg.KEY_READ) as key:
-                    for value_name, expected_value in values.items():
-                        try:
-                            current_value, _ = winreg.QueryValueEx(key, value_name)
-                            if current_value != expected_value:
+                try:
+                    with winreg.OpenKey(hive, path, 0, winreg.KEY_READ) as key:
+                        for value_name, expected_value in expected_values.items():
+                            try:
+                                actual_value, _ = winreg.QueryValueEx(key, value_name)
+                                if actual_value != expected_value:
+                                    return False
+                            except WindowsError:
                                 return False
-                        except WindowsError:
-                            return False
+                except WindowsError:
+                    return False
             return True
         except Exception as e:
             self.logger.error(f"Failed to check registry status: {str(e)}")
