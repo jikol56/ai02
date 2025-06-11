@@ -31,6 +31,18 @@ class Logger:
         
         self.logger.addHandler(file_handler)
 
+    def info(self, msg, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
+
+    def debug(self, msg, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
+
 def setup_logging():
     """로깅 설정 초기화"""
     # vba_blocker 로거 설정
